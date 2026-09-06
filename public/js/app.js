@@ -70,7 +70,7 @@ window.addEventListener('hashchange', render);
 
 // ---------- 首页：数据源列表（仅切换用，管理在 /admin） ----------
 async function renderHome() {
-  setTitle('车载影视', '选择数据源');
+  setTitle('超哥的Tesla移动影院', '选择数据源');
   const data = await api('/api/sources');
   const list = data.list || [];
   const sourceCards = list.length
