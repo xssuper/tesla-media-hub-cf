@@ -21,8 +21,8 @@ id = "739d9679faee48d7a08d61bb7a459100"
 
 [vars]
 # 首次部署的默认管理员账号（部署后仍可在管理后台网页修改，修改后写入 KV 覆盖此处）
-ADMIN_USER = "xssuper"
-ADMIN_PASS = "117314892"
+ADMIN_USER = ""
+ADMIN_PASS = ""
 
 # WebDAV 网盘配置：此为「fallback」。优先使用 /admin 后台页面写入 KV 的配置（无需改此文件、无需重新部署）。
 # 若两者都未设置，「WebDAV 网盘」入口会提示未配置。
