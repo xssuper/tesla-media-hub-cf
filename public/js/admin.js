@@ -71,9 +71,9 @@ async function loadWebdavStatus() {
   try {
     const data = await api('/api/admin/webdav', { token: getToken() });
     const c = data.config || {};
-    el.textContent = c.base
-      ? `已配置：${c.base}（账号：${c.user || '无'}）`
-      : '尚未配置 WebDAV（在首页「WebDAV 网盘」入口使用）';
+    el.innerHTML = c.base
+      ? `<span class="wd-dot ok"></span>已配置：<code>${esc(c.base)}</code>（账号：${esc(c.user || '无')}）`
+      : '<span class="wd-dot off"></span>尚未配置 WebDAV（在首页「WebDAV 网盘」入口使用）';
   } catch (e) {
     el.textContent = '读取配置失败';
   }
@@ -148,15 +148,19 @@ function renderSources(list) {
   const grid = document.getElementById('source-list');
   grid.innerHTML = list.length
     ? list.map((s) => `
-        <div class="card source-card">
-          <div class="card-title">${esc(s.name)}</div>
-          <div class="card-meta">${esc(s.type)} · ${esc(s.url)}</div>
+        <div class="card source-card" style="gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="badge ${s.type === 'iptv' ? 'tvbox' : 'catpaw'}" style="flex:none">${esc(s.type)}</span>
+            <div class="card-title" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</div>
+          </div>
+          <div class="card-meta" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${esc(s.url)}</div>
+          ${s.remark ? `<div class="card-meta">备注：${esc(s.remark)}</div>` : ''}
           <div class="card-actions">
             <button onclick="editSource('${s.id}')">编辑</button>
             <button class="del" onclick="removeSource('${s.id}')">删除</button>
           </div>
         </div>`).join('')
-    : '<div class="empty">暂无数据源，点击下方按钮添加</div>';
+    : '<div class="empty"><div class="empty-icon">📡</div><div class="empty-msg">暂无数据源，点击下方按钮添加</div></div>';
 }
 
 // ---------- 添加 / 编辑 ----------
@@ -182,7 +186,7 @@ function openSourceForm(src) {
       <input id="src-name" placeholder="源名称（如：我的影视源 / 我的IPTV）" value="${src ? esc(src.name) : ''}">
       <select id="src-type" onchange="onSrcTypeChange()" style="width:100%;min-height:42px;padding:0 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#16181d;color:#f2f2f2;font-size:15px;">
         <option value="applecms" ${currentType === 'applecms' ? 'selected' : ''}>AppleCMS 影视源（点播）</option>
-        <option value="iptv" ${currentType === 'iptv' ? 'selected' : ''}>IPTV 直播源（M3U）</option>
+        ${currentType === 'iptv' ? '<option value="iptv" selected>IPTV 直播源（已禁用，仅保留展示）</option>' : ''}
       </select>
       <input id="src-url" placeholder="AppleCMS 接口地址（形如 https://域名/api.php/provide/vod/）" value="${src ? esc(src.url) : ''}">
       <textarea id="src-remark" placeholder="备注（可选）">${src ? esc(src.remark || '') : ''}</textarea>
@@ -230,7 +234,7 @@ async function saveSource(id) {
 window.saveSource = saveSource;
 
 async function removeSource(id) {
-  if (!window.confirm('确定删除该数据源？')) return;
+  if (!window.confirm('确定删除该数据源？\n删除后无法恢复（已生成的播放地址也会失效）。')) return;
   try {
     await api(`/api/sources/${id}`, { method: 'DELETE', token: getToken() });
     showToast('已删除');

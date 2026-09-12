@@ -63,39 +63,54 @@ async function render() {
     }
     else await renderHome();
   } catch (e) {
-    app.innerHTML = `<div class="empty">加载失败：${esc(e.message)}<br><br><button class="btn primary" onclick="go('/')">返回首页</button></div>`;
+    app.innerHTML = emptyBlock('⚠️', '加载失败：' + esc(e.message));
   }
 }
 window.addEventListener('hashchange', render);
 
 // ---------- 首页：数据源列表（仅切换用，管理在 /admin） ----------
+const HERO_MARK = '<div class="hero-mark brand-gradient"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 2.6l2.1 4.3 4.7.7-3.4 3.3.8 4.7-4.2-2.2-4.2 2.2.8-4.7L5.2 7.6l4.7-.7L12 2.6z" fill="rgba(255,255,255,.95)"/><rect x="4" y="17.5" width="16" height="3.4" rx="1.7" fill="rgba(255,255,255,.8)"/></svg></div>';
+
+function emptyBlock(icon, msg) {
+  return '<div class="empty"><div class="empty-icon">' + icon + '</div><div class="empty-msg">' + msg + '</div><button class="btn primary" onclick="go(\'/\')">返回首页</button></div>';
+}
+
 async function renderHome() {
-  setTitle('超哥的Tesla移动影院', '选择数据源');
+  setTitle('超哥的Tesla影院', '选择数据源');
   const data = await api('/api/sources');
   const list = data.list || [];
   const sourceCards = list.length
     ? list.map((s) => `
-        <div class="card source-card" onclick="enterSource('${s.id}','${esc(s.type)}')">
-          <div class="card-title">${esc(s.name)}</div>
-          <div class="card-meta">${esc(s.type)} · ${esc(s.url)}</div>
-          <div class="card-actions">
-            <button class="enter" onclick="event.stopPropagation();enterSource('${s.id}','${esc(s.type)}')">进入</button>
+        <div class="card source-card row-card" onclick="enterSource('${s.id}','${esc(s.type)}')">
+          <div class="row-icon">▶</div>
+          <div class="row-body">
+            <div class="row-name">${esc(s.name)}</div>
+            <div class="row-meta">${esc(s.type)} · ${esc(s.url)}</div>
           </div>
+          <div class="row-arrow"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         </div>`).join('')
-    : '<div class="empty">暂无数据源<br>请管理员在「管理后台」中添加</div>';
+    : '<div class="empty"><div class="empty-icon">📡</div><div class="empty-msg">暂无数据源<br>请管理员在「管理后台」中添加</div></div>';
   const webdavCard = `
-    <div class="card source-card" onclick="go('/webdav')">
-      <div class="card-title">📁 WebDAV 网盘</div>
-      <div class="card-meta">播放网盘内 .mp4 / .strm</div>
-      <div class="card-actions">
-        <button class="enter" onclick="event.stopPropagation();go('/webdav')">进入</button>
+    <div class="card source-card row-card" onclick="go('/webdav')">
+      <div class="row-icon purple">📁</div>
+      <div class="row-body">
+        <div class="row-name">WebDAV 网盘</div>
+        <div class="row-meta">播放网盘内 .mp4 / .strm</div>
       </div>
+      <div class="row-arrow"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
     </div>`;
   app.innerHTML = `
-    <div class="page-title">选择数据源</div>
-    <div class="card-grid">
-      ${sourceCards}
+    <div class="home-hero">
+      ${HERO_MARK}
+      <div class="hero-text">
+        <div class="h1 gradient-text">Tesla 影院</div>
+        <div class="sub">影视分发 · WebCodecs 车机播放</div>
+      </div>
+      <div class="hero-chip">● ${list.length} 个数据源</div>
+    </div>
+    <div class="card-grid row-grid">
       ${webdavCard}
+      ${sourceCards}
     </div>`;
 }
 
@@ -128,7 +143,7 @@ async function renderIptv(sourceId) {
     setTitle(iptvState.sourceName || 'IPTV', `共 ${iptvState.channels.length} 个频道`);
     renderIptvContent();
   } catch (e) {
-    app.innerHTML = `<div class="empty">加载失败：${esc(e.message)}<br><br><button class="btn primary" onclick="go('/')">返回首页</button></div>`;
+    app.innerHTML = emptyBlock('⚠️', '加载失败：' + esc(e.message));
   }
 }
 
@@ -209,13 +224,16 @@ async function renderBrowse(siteKey) {
   browseState.classes = home.classes || [];
   browseState.pagecount = 1;
   browseState.sites = (sitesRes && sitesRes.list) || [];
-  setTitle('浏览', browseState.sites.length > 1 ? `共 ${browseState.sites.length} 个站点可切换` : '');
+  const curSite = browseState.sites.find((x) => x.key === siteKey);
+  const siteName = curSite ? curSite.name : '';
+  setTitle(siteName || '浏览', browseState.sites.length > 1 ? `共 ${browseState.sites.length} 个站点可切换` : 'AppleCMS 点播');
   renderBrowseContent(home.list || []);
 }
 
 function searchRowHtml() {
   return `
     <div class="search-row">
+      <span class="s-ico"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
       <input id="search-input" placeholder="搜索影视名称" value="${esc(browseState.wd)}">
       <button onclick="doSearch()">搜索</button>
     </div>`;
@@ -234,7 +252,7 @@ function renderBrowseContent(list) {
 
   const grid = list.length
     ? `<div class="card-grid">${list.map((v) => vodCardHtml(v)).join('')}</div>`
-    : '<div class="empty">暂无内容</div>';
+    : '<div class="empty"><div class="empty-icon">🎞️</div><div class="empty-msg">暂无内容，换个分类或搜索试试</div></div>';
 
   const pager = browseState.pagecount > 1
     ? `<div class="pager">
@@ -384,7 +402,7 @@ function renderDetailContent() {
       </div>` : ''}
     <div class="section-title">选集（共 ${eps.length} 集）</div>
     <div class="ep-grid">
-      ${eps.length ? eps.map((e, i) => `<button class="ep" onclick="playNow(${i})">${esc(e.name || '第' + (i + 1) + '集')}</button>`).join('') : '<div class="empty">暂无选集（该站点可能需要特殊解析，无法直接播放）</div>'}
+      ${eps.length ? eps.map((e, i) => `<button class="ep" onclick="playNow(${i})">${esc(e.name || '第' + (i + 1) + '集')}</button>`).join('') : '<div class="empty"><div class="empty-icon">🎞️</div><div class="empty-msg">暂无选集（该站点可能需要特殊解析，无法直接播放）</div></div>'}
     </div>
     <div style="height:20px"></div>`;
 }
@@ -412,33 +430,42 @@ let webdavItems = [];
 async function renderWebdav(subPath) {
   const path = subPath || '/';
   setTitle('WebDAV 网盘', path);
-  app.innerHTML = '<div class="loading">加载中…</div>';
+  app.innerHTML = '<div class="loading">正在读取目录…</div>';
   let data;
   try {
     data = await api('/api/dav?path=' + encodeURIComponent(path));
   } catch (e) {
-    app.innerHTML = `<div class="empty">加载失败：${esc(e.message)}<br><br><button class="btn primary" onclick="go('/')">返回首页</button></div>`;
+    app.innerHTML = emptyBlock('⚠️', '加载失败：' + esc(e.message));
     return;
   }
   const items = data.items || [];
   webdavItems = items;
-  const up = path !== '/' ? `<div style="margin-bottom:8px"><button class="btn" onclick="go('/webdav')">↑ 根目录</button></div>` : '';
+  const up = path !== '/' ? `<div style="margin-bottom:10px"><button class="btn" style="min-height:42px" onclick="go('/webdav')">↑ 返回根目录</button></div>` : '';
   const grid = items.length
     ? `<div class="card-grid">${items.map((it, idx) => webdavItemHtml(it, idx)).join('')}</div>`
-    : '<div class="empty">该目录为空</div>';
+    : '<div class="empty"><div class="empty-icon">🗂️</div><div class="empty-msg">该目录为空</div></div>';
   app.innerHTML = `
-    <div class="page-title">WebDAV 网盘 · ${esc(path)}</div>
+    <div class="page-title">📁 WebDAV 网盘 <span style="font-size:14px;color:var(--text-dim);font-weight:400">${esc(path)}</span></div>
     ${up}${grid}`;
 }
+function davSizeFmt(bytes) {
+  const n = Number(bytes) || 0;
+  if (!n) return '';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+  if (n < 1024 * 1024 * 1024) return (n / 1048576).toFixed(1) + ' MB';
+  return (n / 1073741824).toFixed(2) + ' GB';
+}
+
 function webdavItemHtml(it, idx) {
-  if (it.isDir) {
-    return `<div class="card vod-card" onclick="go('/webdav/${encodeURIComponent(it.path.replace(/^\/+/, ''))}')">
-      <div class="poster"><div class="remarks">文件夹</div></div>
-      <div class="v-name">${esc(it.name)}</div></div>`;
-  }
-  const tag = it.playable ? '▶ 可播放' : '文件';
-  return `<div class="card vod-card" onclick="playWebdavByIndex(${idx})">
-    <div class="poster"><div class="remarks">${esc(tag)}</div></div>
+  const ico = it.isDir ? '📁' : (it.playable ? '🎬' : '📄');
+  const tag = it.isDir ? '文件夹' : (it.playable ? '▶ 可播放' : '文件');
+  const size = davSizeFmt(it.size);
+  return `<div class="card vod-card dav-card" onclick="${it.isDir ? `go('/webdav/${encodeURIComponent(it.path.replace(/^\/+/, ''))}')` : `playWebdavByIndex(${idx})`}">
+    <div class="poster">
+      <div class="dav-ico">${ico}</div>
+      ${size ? `<div class="dav-size">${esc(size)}</div>` : ''}
+      <div class="remarks">${esc(tag)}</div>
+    </div>
     <div class="v-name">${esc(it.name)}</div></div>`;
 }
 function playWebdavByIndex(idx) {
