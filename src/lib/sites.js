@@ -101,13 +101,14 @@ function createAppleCmsSite(site) {
         /* 部分站点不支持 ac=list */
       }
 
-      let list = [];
+      let home = { page: 1, pagecount: 1, total: 0, limit: 0, list: [] };
       try {
-        list = normalizeList(await fetchVodList(site, { pg: '1' })).list;
+        home = normalizeList(await fetchVodList(site, { pg: '1' }));
       } catch (e) {
         /* 忽略首页加载失败 */
       }
-      return { classes, list };
+      // 带回 pagecount/total，前端「全部」视图据此显示分页
+      return { classes, ...home };
     },
 
     async getCategory({ cat, page, filter }) {

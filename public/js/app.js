@@ -222,7 +222,7 @@ async function renderBrowse(siteKey) {
     api(`/api/sources/${sourceId}/sites`).catch(() => ({ list: [] })),
   ]);
   browseState.classes = home.classes || [];
-  browseState.pagecount = 1;
+  browseState.pagecount = Math.max(1, Number(home.pagecount || 1));
   browseState.sites = (sitesRes && sitesRes.list) || [];
   const curSite = browseState.sites.find((x) => x.key === siteKey);
   const siteName = curSite ? curSite.name : '';
@@ -250,9 +250,14 @@ function renderBrowseContent(list) {
         <button class="cat ${browseState.cat === String(c.type_id) ? 'active' : ''}" onclick="selectCat('${esc(String(c.type_id))}')">${esc(c.type_name)}</button>`).join('')}
     </div>`;
 
+  const emptyMsg = browseState.mode === 'search'
+    ? '没有搜到相关内容，换个关键词试试'
+    : browseState.cat
+      ? '该分类下暂无内容（源里的顶级大类一般为空，请选下级分类）'
+      : '暂无内容，换个分类或搜索试试';
   const grid = list.length
     ? `<div class="card-grid">${list.map((v) => vodCardHtml(v)).join('')}</div>`
-    : '<div class="empty"><div class="empty-icon">🎞️</div><div class="empty-msg">暂无内容，换个分类或搜索试试</div></div>';
+    : `<div class="empty"><div class="empty-icon">🎞️</div><div class="empty-msg">${emptyMsg}</div></div>`;
 
   const pager = browseState.pagecount > 1
     ? `<div class="pager">

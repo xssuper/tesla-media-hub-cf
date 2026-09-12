@@ -584,7 +584,7 @@ body::before {
     radial-gradient(560px 320px at 12% -6%, rgba(0,180,216,.13), transparent 62%),
     radial-gradient(620px 380px at 108% 112%, rgba(124,92,255,.11), transparent 60%);
 }
-#topbar, #app, .player-layer, .modal, .toast { position: relative; z-index: 1; }
+#topbar, #app { position: relative; z-index: 1; }
 
 /* 卡片：悬浮感 + 顶部渐变亮线 */
 .card {
