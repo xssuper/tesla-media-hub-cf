@@ -2,9 +2,6 @@ name = "tesla-media-hub-cf"
 main = "src/index.js"
 compatibility_date = "2025-05-01"
 
-# Cloudflare 账号 ID（来自 CF 后台右上角「账户 ID」，或 `npx wrangler whoami`）
-account_id = "e494a1960cf915d935dd3d68d9519388"
-
 # 静态资源（前端 public/）由 Cloudflare 静态资产直接托管，无需 /api 的请求会回退到这里
 [assets]
 directory = "./public"

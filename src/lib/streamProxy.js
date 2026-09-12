@@ -26,6 +26,35 @@ function safeUrl(raw) {
   return u;
 }
 
+// 主机白名单：只允许代理「已配置数据源」与「WebDAV 网盘」的主机，
+// 防止刷单 /api/stream?url=... 代理任意第三方主机（白名单以外的地址一律拦截）。
+function buildAllowedHosts(env, sources) {
+  const hosts = new Set();
+  if (env && env.WEBDAV_BASE) {
+    try {
+      const h = new URL(String(env.WEBDAV_BASE)).hostname.toLowerCase();
+      if (h) hosts.add(h);
+    } catch (_) { /* ignore */ }
+  }
+  for (const src of Array.isArray(sources) ? sources : []) {
+    try {
+      const h = new URL(String(src && src.url || '')).hostname.toLowerCase();
+      if (h) hosts.add(h);
+    } catch (_) { /* ignore */ }
+  }
+  return hosts;
+}
+
+// 主机边界匹配：主机本身或其子域（防 evil.example.com / example.com.evil.com 匹配）
+function hostAllowed(hostname, allowedHosts) {
+  const h = String(hostname || "").toLowerCase();
+  if (!h || !allowedHosts.size) return false;
+  for (const a of allowedHosts) {
+    if (h === a || h.endsWith("." + a)) return true;
+  }
+  return false;
+}
+
 function toAbsolute(uri, baseUrl) {
   try {
     if (/^[a-z][a-z0-9+.-]*:/i.test(uri) && !uri.startsWith('//')) {
@@ -75,12 +104,18 @@ function rewriteM3u8(text, baseUrl, proxyBase) {
   return out.join('\n');
 }
 
-export async function handleStream(request, url, env) {
+export async function handleStream(request, url, env, opts = {}) {
   const target = url.searchParams.get('url');
   if (!target) return new Response('bad url', { status: 400 });
 
   const tu = safeUrl(target);
   if (!tu) return new Response('blocked or invalid url', { status: 403 });
+
+  // 白名单校验：只允许代理已配置数据源 / WebDAV 网盘的主机
+  const allowedHosts = buildAllowedHosts(env, opts && opts.sources);
+  if (!hostAllowed(tu.hostname, allowedHosts)) {
+    return new Response('stream target not in source whitelist', { status: 403 });
+  }
 
   // 注入源站自身的 Referer/Origin，绕过大多数防盗链校验
   const referer = tu.origin + '/';

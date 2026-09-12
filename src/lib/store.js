@@ -7,17 +7,12 @@ const ADMIN_KEY = 'tmh:admin';
 const TOKEN_TTL = 12 * 3600 * 1000; // 12 小时
 
 let KV = null;
-let SECRET = null;
+let SECRET = null; // 首次 init 时写入：必须配置 TMH_SECRET（Secrets），否则拒绝提供服务
 let ENV_USER = 'admin';
 let ENV_PASS = 'admin123';
 let ENV_WEBDAV_BASE = '';
 let ENV_WEBDAV_USER = '';
 let ENV_WEBDAV_PASS = '';
-
-// 未配置 TMH_SECRET 时使用的内置默认值（已随机生成，写死在代码里）。
-// 这样即使不在 CF 后台设 Secret，部署也能稳定签发/校验登录 token（不会每次冷启动换密钥导致登录态失效）。
-// 若需自行更换，可在 CF 后台添加 Secret 类型的 TMH_SECRET 覆盖它。
-const BUILTIN_SECRET = '70acc766ad71cc78b8a6530a91b934174872fb9e4c7b27d4055f1f2b6a72ceb1';
 
 const DEFAULT_SOURCES = {
   sources: [
@@ -35,9 +30,13 @@ function init(env) {
   ENV_WEBDAV_BASE = env.WEBDAV_BASE || '';
   ENV_WEBDAV_USER = env.WEBDAV_USER || '';
   ENV_WEBDAV_PASS = env.WEBDAV_PASS || '';
-  // 仅首次初始化时确定签名密钥：优先用后台 Secret TMH_SECRET，未配置则回退到代码内置默认值
-  // （后续请求不要重复生成，否则每次都换密钥会让已签发 token 立刻失效）
-  if (SECRET === null) SECRET = env.TMH_SECRET || BUILTIN_SECRET;
+  // 仅首次初始化时确定签名密钥（后续请求不重复生成，否则已签发 token 立刻失效）
+  if (SECRET === null) {
+    SECRET = env.TMH_SECRET || null;
+    if (!SECRET) {
+      throw new Error('TMH_SECRET 未配置：请先在 Cloudflare 后台设置 Secret TMH_SECRET（如 npx wrangler secret put TMH_SECRET）后重新部署');
+    }
+  }
 }
 
 // ---------- 源配置 ----------

@@ -39,9 +39,9 @@ npx wrangler kv namespace create tesla-media-hub
 
 把 `id` 填到 `wrangler.toml` 里的 `[[kv_namespaces]]` 的 `id = "..."` 处。
 
-### 3.（强烈建议）设置登录态签名密钥
+### 3.（必须）设置登录态签名密钥
 
-不设置也能跑，但未设 `TMH_SECRET` 时每个 Worker 冷启动会随机生成密钥，重启后旧登录态失效。建议设为 Secrets（不进仓库）：
+`TMH_SECRET` 是登录态 HMAC 签名密钥，**必须**以 Secrets 形式设置（不进仓库）；未设置时 Worker 会直接拒绝提供服务（返回 500 并提示配置方法）：
 
 ```bash
 npx wrangler secret put TMH_SECRET
@@ -93,7 +93,7 @@ Git 集成部署时，以下配置从 `wrangler.toml` 与后台「变量和机�
 | ---- | ---- | ---- | ---- |
 | **KV 绑定** | `TMH_KV` | 源配置/管理员账号存储（id 已在 `wrangler.toml` 填好；若后台未自动识别，需在 Worker → Settings → Variables and Secrets → Add → KV 选命名空间） | 后台 |
 | **明文变量** | `ADMIN_USER` / `ADMIN_PASS` | 默认管理员账号（已写在 `wrangler.toml` 的 `[vars]`，会随 Git 部署自动应用） | 无需额外操作（在 toml 内） |
-| **Secret（机密）** | `TMH_SECRET` | 登录态 HMAC 签名密钥。**必须手动设**，否则每次冷启动随机密钥、登录态易失效 | Worker → Settings → Variables and Secrets → **Add** → 选 **Secret** |
+| **Secret（机密）** | `TMH_SECRET` | 登录态 HMAC 签名密钥。**必须手动设**，未设置时 Worker 拒绝服务（无内置回退密钥） | Worker → Settings → Variables and Secrets → **Add** → 选 **Secret** |
 
 设置 `TMH_SECRET`（两个环境都要加：Production 和 Preview，否则 PR 预览环境会登录异常）：
 
@@ -156,6 +156,12 @@ npx wrangler dev
 
 `wrangler dev` 会用本地预览 KV，无需真实 KV id 即可联调（部分功能会读取/写入本地模拟 KV）。
 
+本地需先建 `.dev.vars` 并写入 `TMH_SECRET=<随机长串>`（该文件已在 `.gitignore`，不会入仓），否则 Worker 会因未配置签名密钥而拒绝服务：
+
+```bash
+npx wrangler secret put TMH_SECRET --local
+```
+
 ## 使用说明
 
 - 首页选择数据源 → 浏览分类 / 搜索 → 打开详情 → 点选集即播放（车机本地 WebCodecs 解码到 Canvas，无 `<video>` 标签）。
@@ -188,6 +194,7 @@ WebDAV 配置存于 KV（键 `tmh:webdav`），**无需改动部署变量、无�
 
 ## 已知限制 / 注意事项
 
+- **流媒体代理主机白名单**：`/api/stream` 仅允许代理「已配置数据源」与「WebDAV 网盘」的主机（含其子域）；其他地址返回 403，防止被刷单 / 滥用为任意第三方内容代理。新增数据源 / 改 WebDAV 地址后即时生效，无需重新部署。
 - **仅支持 AppleCMS 直链 JSON 接口**（`ac=list`/`ac=detail`/`ac=videolist`），依赖 Spider/XPath 解析的站点无法播放。
 - **播放已默认走同源流媒体代理 `/api/stream`**：前端拿到的播放地址会自动改写为 `/api/stream?url=...`，由 Worker 向源站拉流并注入源站自身的 `Referer`/`Origin`、透传 `Range`、对 m3u8 递归改写内部 ts/key 地址。这样能解决大部分源站「防盗链（Referer 校验）/跨域」导致的连接失败——这也是 Cloudflare 版相比 Docker 版最容易踩的坑（Docker 版前端跑在你自己的域名/IP 下，源站通常放行；CF 版跑在 `*.workers.dev` 或自定义域名下，源站可能拒绝）。
 - **仍有极少数源站只放行特定地区/ISP 出口 IP**：这种情况下代理也救不了（Worker 出口是 Cloudflare 数据中心 IP），只能换源或改用 Docker 版。

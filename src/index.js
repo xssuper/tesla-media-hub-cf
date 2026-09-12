@@ -7,8 +7,6 @@ import { listDir, getPlayUrl } from './lib/webdav.js';
 
 export default {
   async fetch(request, env) {
-    store.init(env);
-
     const url = new URL(request.url);
     const p = url.pathname;
 
@@ -22,7 +20,8 @@ export default {
     }
 
     try {
-      return await routeApi(request, url);
+      store.init(env);
+      return await routeApi(request, url, env);
     } catch (e) {
       return json({ code: 0, msg: e && e.message ? e.message : '未知错误' }, 500);
     }
@@ -30,7 +29,7 @@ export default {
 };
 
 // ---------------- 路由 ----------------
-async function routeApi(request, url) {
+async function routeApi(request, url, env) {
   const method = request.method;
   const p = url.pathname;
   const segs = p.split('/').filter(Boolean); // ["api","sources",":id",...]
@@ -170,7 +169,7 @@ async function routeApi(request, url) {
   if (p === '/api/stream' && method === 'GET') {
     // 合并 KV 中的 WebDAV 配置（优先于 wrangler 变量），供代理注入 Basic Auth
     const wdEnv = await store.getWebdavConfig();
-    return await handleStream(request, url, { ...env, ...wdEnv });
+    return await handleStream(request, url, { ...env, ...wdEnv }, { sources: await store.listSources() });
   }
 
   // /api/dav  WebDAV 列目录（PROPFIND）
