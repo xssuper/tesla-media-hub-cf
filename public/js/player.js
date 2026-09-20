@@ -15,8 +15,8 @@ let lastFramePaused = false; // 末集/单集：已在最后一秒暂停画面�
 const LAST_FRAME_PAUSE_SEC = 1; // 距离片尾不足该秒数时暂停在末帧
 
 // 按主机记忆的播放方式（'direct' = 直连可用 / 'proxy' = 代理可用）。
-// 同一主机一旦某次「代理失败 → 直连成功」，之后同主机的播放直接走直连，
-// 不再出现「代理失败，正在尝试浏览器直连源站…」提示（学习结果存 localStorage）。
+// 默认直连优先；某主机若「直连失败 → 代理成功」（如源站 Referer 校验 / WebDAV 鉴权），
+// 之后同主机直接走代理，不再白试直连（学习结果存 localStorage）。
 const HOST_MODE_KEY = 'tmh_host_mode_v1';
 let hostMode = (() => {
   try {
@@ -40,37 +40,16 @@ function preferredFallback(rawUrl) {
   return hostMode[hostOf(rawUrl)] === 'direct';
 }
 
-// 首次遇到某主机时快速探测「流媒体代理」是否可用：
-//  - 有记忆 → 直接用记忆，不探测
-//  - 无记忆 → 向 /api/stream 发 Range: bytes=0-0 预检（3s 超时）：
-//      200/206 → 代理可用（记 'proxy'）
-//      错误/超时 → 直连（记 'direct'）
-// 这样「源站封锁 CF 出口 IP / 代理慢」的主机在第一次播放就直接走直连，
-// 不再白等 15s 首帧超时或反复弹「代理失败，正在尝试浏览器直连源站…」
-const PROBE_TIMEOUT_MS = 3000;
-async function pickMode(rawUrl) {
+// 选择播放模式：
+//  - 有记忆 → 直接用记忆（onFirstFrame 成功时写入）
+//  - 无记忆 → 直连优先：车机走家庭宽带 IP，源站基本都放行，且无 CF 中转、首帧最快、不耗 Worker 流量
+//    若直连被源站拒绝（如 Referer 校验 403 / WebDAV 鉴权 401），onError 会秒级触发并自动回退代理，
+//    成功后该主机会被记忆为 'proxy'，之后不再白试直连
+function pickMode(rawUrl) {
   const h = hostOf(rawUrl);
-  if (!h) return false;
+  if (!h) return true; // 无法识别主机 → 直连
   if (hostMode[h]) return hostMode[h] === 'direct';
-  if (!/^https?:\/\//i.test(rawUrl)) return false;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
-  let ok = false;
-  try {
-    const r = await fetch(proxyUrl(rawUrl), {
-      method: 'GET',
-      headers: { Range: 'bytes=0-0' },
-      signal: ctrl.signal,
-    });
-    ok = r.status === 200 || r.status === 206;
-    if (r.body) r.body.cancel().catch(() => {});
-  } catch (_) {
-    ok = false;
-  } finally {
-    clearTimeout(timer);
-  }
-  rememberMode(rawUrl, ok ? 'proxy' : 'direct');
-  return !ok; // true = 直连
+  return true; // 默认直连优先
 }
 
 function esc(s) {
@@ -213,7 +192,7 @@ async function applyMode() {
     if (!ctx._fallback && tryFallback(ctx, true)) return;
     if (ctx._fallback && tryFallback(ctx, false)) return;
     showToast('首帧等待超时：该片源可能为车机不支持的编码（如 HEVC/H265）或解码缓慢，可尝试切换线路');
-  }, 8000);
+  }, 12000);
 
   try {
     iptvPlayer = await window.IptvAdapter.createPlayer(driveHost, ctx.lastUrl, {
@@ -309,7 +288,7 @@ async function playCurrent(resume) {
     const epUrl = ep.url || ep.id || '';
     if (!epUrl) { showToast('未获取到播放地址'); return; }
     ctx.rawUrl = epUrl;
-    ctx._fallback = await pickMode(epUrl); // 有记忆直用；无记忆先探测代理，慢/挂则直连
+    ctx._fallback = pickMode(epUrl); // 直连优先；有记忆则用记忆
     ctx._fallbackTried = false;
     ctx.lastUrl = ctx.rawUrl;
     ctx.urls = [{ label: '默认', url: epUrl }];
@@ -333,8 +312,8 @@ async function playCurrent(resume) {
 
   // 记录原始源站 URL（未代理包装），用于代理失败时的直连回退
   ctx.rawUrl = res.url || ep.url || ep.id || '';
-  // 每次重新解析选集时重置回退状态：有该主机记忆则优先用记忆中的方式，无记忆先探测
-  ctx._fallback = await pickMode(ctx.rawUrl);
+  // 每次重新解析选集时重置回退状态：直连优先，有该主机记忆则用记忆中的方式
+  ctx._fallback = pickMode(ctx.rawUrl);
   ctx._fallbackTried = false;
   ctx.lastUrl = ctx.rawUrl;
   ctx.urls = (res.urls && res.urls.length) ? res.urls : (res.url ? [{ label: res.label || '自动', url: res.url }] : []);
@@ -364,7 +343,7 @@ async function cycleQuality() {
   document.getElementById('btn-quality').textContent = q.label;
   ctx.rawUrl = q.url;
   ctx.lastUrl = q.url;
-  ctx._fallback = await pickMode(q.url);
+  ctx._fallback = pickMode(q.url);
   ctx._fallbackTried = false;
   await applyMode(); // 重建播放实例以装载新清晰度
   showToast('已切换：' + q.label);
