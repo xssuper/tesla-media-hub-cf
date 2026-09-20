@@ -14,6 +14,65 @@ let startupTimer = null;   // 点播首帧超时诊断：黑屏无提示时给�
 let lastFramePaused = false; // 末集/单集：已在最后一秒暂停画面，避免重复暂停与误触发续播
 const LAST_FRAME_PAUSE_SEC = 1; // 距离片尾不足该秒数时暂停在末帧
 
+// 按主机记忆的播放方式（'direct' = 直连可用 / 'proxy' = 代理可用）。
+// 同一主机一旦某次「代理失败 → 直连成功」，之后同主机的播放直接走直连，
+// 不再出现「代理失败，正在尝试浏览器直连源站…」提示（学习结果存 localStorage）。
+const HOST_MODE_KEY = 'tmh_host_mode_v1';
+let hostMode = (() => {
+  try {
+    const m = JSON.parse(localStorage.getItem(HOST_MODE_KEY) || '{}');
+    return m && typeof m === 'object' ? m : {};
+  } catch (_) { return {}; }
+})();
+function hostOf(u) { try { return new URL(u).hostname.toLowerCase(); } catch (_) { return ''; } }
+function rememberMode(url, mode) {
+  const h = hostOf(url);
+  if (!h) return;
+  if (hostMode[h] === mode) return;
+  hostMode[h] = mode;
+  try {
+    const keys = Object.keys(hostMode);
+    if (keys.length > 300) keys.slice(0, keys.length - 300).forEach((k) => delete hostMode[k]);
+    localStorage.setItem(HOST_MODE_KEY, JSON.stringify(hostMode));
+  } catch (_) { /* 存储不可用时忽略 */ }
+}
+function preferredFallback(rawUrl) {
+  return hostMode[hostOf(rawUrl)] === 'direct';
+}
+
+// 首次遇到某主机时快速探测「流媒体代理」是否可用：
+//  - 有记忆 → 直接用记忆，不探测
+//  - 无记忆 → 向 /api/stream 发 Range: bytes=0-0 预检（3s 超时）：
+//      200/206 → 代理可用（记 'proxy'）
+//      错误/超时 → 直连（记 'direct'）
+// 这样「源站封锁 CF 出口 IP / 代理慢」的主机在第一次播放就直接走直连，
+// 不再白等 15s 首帧超时或反复弹「代理失败，正在尝试浏览器直连源站…」
+const PROBE_TIMEOUT_MS = 3000;
+async function pickMode(rawUrl) {
+  const h = hostOf(rawUrl);
+  if (!h) return false;
+  if (hostMode[h]) return hostMode[h] === 'direct';
+  if (!/^https?:\/\//i.test(rawUrl)) return false;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+  let ok = false;
+  try {
+    const r = await fetch(proxyUrl(rawUrl), {
+      method: 'GET',
+      headers: { Range: 'bytes=0-0' },
+      signal: ctrl.signal,
+    });
+    ok = r.status === 200 || r.status === 206;
+    if (r.body) r.body.cancel().catch(() => {});
+  } catch (_) {
+    ok = false;
+  } finally {
+    clearTimeout(timer);
+  }
+  rememberMode(rawUrl, ok ? 'proxy' : 'direct');
+  return !ok; // true = 直连
+}
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -27,6 +86,16 @@ function esc(s) {
  * - 仅对 http(s) 绝对地址进行代理包装
  * 注意：AVPlayer 在 Web Worker 中拉流，Worker 内无法解析相对 URL，因此必须返回绝对地址。
  */
+// 播放失败/首帧超时时的模式回退（仅一次，防止代理↔直连无限乒乓）
+function tryFallback(ctx, toDirect) {
+  if (!ctx || ctx._fallbackTried) return false;
+  ctx._fallbackTried = true;
+  ctx._fallback = toDirect;
+  showToast(toDirect ? '代理不可用/较慢，正在切换浏览器直连源站…' : '直连失败，正在切换流媒体代理…');
+  applyMode();
+  return true;
+}
+
 function proxyUrl(raw) {
   if (!raw) return raw;
   if (/^(blob:|data:)/i.test(raw)) return raw;
@@ -140,25 +209,24 @@ async function applyMode() {
   // 首帧超时提示：解码/渲染若静默失败（黑屏无报错），主动给出可能原因
   startupTimer = setTimeout(() => {
     startupTimer = null;
+    // 首帧超时：当前模式不可用/太慢 → 换另一种方式再试一次
+    if (!ctx._fallback && tryFallback(ctx, true)) return;
+    if (ctx._fallback && tryFallback(ctx, false)) return;
     showToast('首帧等待超时：该片源可能为车机不支持的编码（如 HEVC/H265）或解码缓慢，可尝试切换线路');
-  }, 15000);
+  }, 8000);
 
   try {
     iptvPlayer = await window.IptvAdapter.createPlayer(driveHost, ctx.lastUrl, {
       live: false,
       onFirstFrame: () => {
         if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
+        rememberMode(ctx.lastUrl, ctx._fallback ? 'direct' : 'proxy'); // 记住成功方式
       },
       onError: (e) => {
         if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
-        // 代理失败（如源站封锁 CF 出口 IP）→ 自动回退浏览器直连（仅一次）
-        if (!ctx._fallback && !ctx._fallbackTried) {
-          ctx._fallbackTried = true;
-          ctx._fallback = true;
-          showToast('代理失败，正在尝试浏览器直连源站…');
-          applyMode();
-          return;
-        }
+        // 代理失败（如源站封锁 CF 出口 IP）→ 直连；直连失败 → 回代理（均仅一次）
+        if (!ctx._fallback && tryFallback(ctx, true)) return;
+        if (ctx._fallback && tryFallback(ctx, false)) return;
         showToast('播放出错：' + (e && e.message ? e.message : '未知错误'));
       },
       // 时间更新：末集/单集在最后一秒暂停画面，保留末帧（不黑屏、不销毁）
@@ -193,13 +261,8 @@ async function applyMode() {
     });
   } catch (e) {
     if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
-    if (!ctx._fallback && !ctx._fallbackTried) {
-      ctx._fallbackTried = true;
-      ctx._fallback = true;
-      showToast('代理失败，正在尝试浏览器直连源站…');
-      applyMode();
-      return;
-    }
+    if (!ctx._fallback && tryFallback(ctx, true)) return;
+    if (ctx._fallback && tryFallback(ctx, false)) return;
     showToast('播放失败（浏览器需支持 WebCodecs 且源站允许跨域）：' + (e && e.message ? e.message : ''));
   }
 }
@@ -246,7 +309,7 @@ async function playCurrent(resume) {
     const epUrl = ep.url || ep.id || '';
     if (!epUrl) { showToast('未获取到播放地址'); return; }
     ctx.rawUrl = epUrl;
-    ctx._fallback = false;
+    ctx._fallback = await pickMode(epUrl); // 有记忆直用；无记忆先探测代理，慢/挂则直连
     ctx._fallbackTried = false;
     ctx.lastUrl = ctx.rawUrl;
     ctx.urls = [{ label: '默认', url: epUrl }];
@@ -270,8 +333,8 @@ async function playCurrent(resume) {
 
   // 记录原始源站 URL（未代理包装），用于代理失败时的直连回退
   ctx.rawUrl = res.url || ep.url || ep.id || '';
-  // 每次重新解析选集时重置回退状态，优先尝试代理
-  ctx._fallback = false;
+  // 每次重新解析选集时重置回退状态：有该主机记忆则优先用记忆中的方式，无记忆先探测
+  ctx._fallback = await pickMode(ctx.rawUrl);
   ctx._fallbackTried = false;
   ctx.lastUrl = ctx.rawUrl;
   ctx.urls = (res.urls && res.urls.length) ? res.urls : (res.url ? [{ label: res.label || '自动', url: res.url }] : []);
@@ -301,7 +364,7 @@ async function cycleQuality() {
   document.getElementById('btn-quality').textContent = q.label;
   ctx.rawUrl = q.url;
   ctx.lastUrl = q.url;
-  ctx._fallback = false;
+  ctx._fallback = await pickMode(q.url);
   ctx._fallbackTried = false;
   await applyMode(); // 重建播放实例以装载新清晰度
   showToast('已切换：' + q.label);
