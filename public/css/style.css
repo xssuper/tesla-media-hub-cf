@@ -825,3 +825,55 @@ body::before {
   .hero-text .sub { font-size: 12px; }
   .hero-chip { display: none; }
 }
+
+/* ============ 特斯拉车机适配 ============
+   窗口模式（非全屏）：1180 × 919
+   全屏模式：          1920 × 1079
+   两个断点分别微调布局密度 / 字号 / 卡片尺寸，
+   全屏（宽屏）下信息密度更高，窗口模式下保持紧凑。 */
+
+/* 窗口模式 ≈1180×919：列宽/间距/字号略增，充分利用横向空间 */
+@media (min-width: 1100px) {
+  #app { padding: 16px 18px; }
+  #topbar { padding: 12px 18px; }
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 14px; }
+  .ep-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
+  .detail-head .poster { width: 150px; }
+  .detail-info .d-title { font-size: 22px; }
+  .modal-body { max-width: 600px; }
+  .login-box { max-width: 460px; }
+}
+
+/* 全屏模式 ≈1920×1079：基准字号 +1、首页行卡 3 列、海报网格更大 */
+@media (min-width: 1600px) {
+  html, body { font-size: 18px; }
+  #app { padding: 22px 28px; }
+  #topbar { padding: 14px 24px; }
+  #page-title { font-size: 22px; }
+  .page-sub { font-size: 14px; }
+  .page-title { font-size: 24px; }
+  .section-title { font-size: 16px; }
+
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+  .card-grid.row-grid { grid-template-columns: repeat(3, 1fr); }
+  .row-icon { width: 52px; height: 52px; font-size: 25px; border-radius: 14px; }
+  .row-name { font-size: 18px; }
+  .row-meta { font-size: 13.5px; }
+
+  .home-hero { padding: 8px 2px 20px; margin-bottom: 18px; }
+  .hero-mark { width: 60px; height: 60px; border-radius: 16px; }
+  .hero-text .h1 { font-size: 27px; }
+  .hero-text .sub { font-size: 14px; }
+  .hero-chip { font-size: 13px; padding: 5px 12px; }
+
+  .ep-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; }
+  .detail-head .poster { width: 184px; border-radius: 16px; }
+  .detail-info .d-title { font-size: 25px; }
+  .detail-desc { padding: 14px; max-height: 200px; }
+
+  .search-row input, .search-row button { min-height: 52px; }
+  .cat-bar .cat, .tab-bar .tab { min-height: 48px; }
+
+  .login-box { max-width: 480px; padding: 34px 28px; }
+  .toast { font-size: 16px; bottom: 96px; }
+}
