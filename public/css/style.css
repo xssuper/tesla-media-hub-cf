@@ -877,3 +877,32 @@ body::before {
   .login-box { max-width: 480px; padding: 34px 28px; }
   .toast { font-size: 16px; bottom: 96px; }
 }
+
+/* ============ 电影/网盘海报网格：按车机两种窗口尺寸显式定列数 ============
+   卡片宽度随窗口自动铺满（列数固定 → 卡片大小自适应）：
+   · 窗口模式 1180×919  → 6 列 × 3 行（卡片 ≈180px 宽，海报 ≈239px 高，一屏约 3 行）
+   · 全屏模式 1920×1079 → 9 列 × 3 行（卡片 ≈193px 宽，一屏约 3 行）
+   其他尺寸（手机/平板/任意窗口）仍用 auto-fill 自动填充。 */
+
+/* 窗口模式 ≈1180×919 */
+@media (min-width: 1100px) and (max-width: 1599px) {
+  .card-grid.vod-grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+  }
+}
+
+/* 全屏模式 ≈1920×1079 */
+@media (min-width: 1600px) {
+  .card-grid.vod-grid {
+    grid-template-columns: repeat(9, 1fr);
+    gap: 16px;
+  }
+  .vod-card .v-name { font-size: 15px; }
+  .vod-card .poster .remarks { font-size: 14px; }
+}
+
+/* 超宽桌面（>2200，如外接大屏）：10 列避免卡片过大 */
+@media (min-width: 2200px) {
+  .card-grid.vod-grid { grid-template-columns: repeat(10, 1fr); }
+}

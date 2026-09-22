@@ -256,7 +256,7 @@ function renderBrowseContent(list) {
       ? '该分类下暂无内容（源里的顶级大类一般为空，请选下级分类）'
       : '暂无内容，换个分类或搜索试试';
   const grid = list.length
-    ? `<div class="card-grid">${list.map((v) => vodCardHtml(v)).join('')}</div>`
+    ? `<div class="card-grid vod-grid">${list.map((v) => vodCardHtml(v)).join('')}</div>`
     : `<div class="empty"><div class="empty-icon">🎞️</div><div class="empty-msg">${emptyMsg}</div></div>`;
 
   const pager = browseState.pagecount > 1
@@ -447,7 +447,7 @@ async function renderWebdav(subPath) {
   webdavItems = items;
   const up = path !== '/' ? `<div style="margin-bottom:10px"><button class="btn" style="min-height:42px" onclick="go('/webdav')">↑ 返回根目录</button></div>` : '';
   const grid = items.length
-    ? `<div class="card-grid">${items.map((it, idx) => webdavItemHtml(it, idx)).join('')}</div>`
+    ? `<div class="card-grid vod-grid">${items.map((it, idx) => webdavItemHtml(it, idx)).join('')}</div>`
     : '<div class="empty"><div class="empty-icon">🗂️</div><div class="empty-msg">该目录为空</div></div>';
   app.innerHTML = `
     <div class="page-title">📁 WebDAV 网盘 <span style="font-size:14px;color:var(--text-dim);font-weight:400">${esc(path)}</span></div>
