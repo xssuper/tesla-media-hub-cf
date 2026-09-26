@@ -79,25 +79,26 @@ async function renderHome() {
   setTitle('超哥的Tesla影院', '选择数据源');
   const data = await api('/api/sources');
   const list = data.list || [];
+  const ARROW = '<div class="row-arrow"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>';
   const sourceCards = list.length
     ? list.map((s) => `
         <div class="card source-card row-card" onclick="enterSource('${s.id}','${esc(s.type)}')">
           <div class="row-icon">▶</div>
           <div class="row-body">
-            <div class="row-name">${esc(s.name)}</div>
-            <div class="row-meta">${esc(s.type)} · ${esc(s.url)}</div>
+            <div class="row-line name"><div class="row-name">${esc(s.name)}</div><span class="row-badge">${esc(s.type)}</span></div>
+            <div class="row-url">${esc(s.url)}</div>
           </div>
-          <div class="row-arrow"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          ${ARROW}
         </div>`).join('')
     : '<div class="empty"><div class="empty-icon">📡</div><div class="empty-msg">暂无数据源<br>请管理员在「管理后台」中添加</div></div>';
   const webdavCard = `
     <div class="card source-card row-card" onclick="go('/webdav')">
       <div class="row-icon purple">📁</div>
       <div class="row-body">
-        <div class="row-name">WebDAV 网盘</div>
-        <div class="row-meta">播放网盘内 .mp4 / .strm</div>
+        <div class="row-line name"><div class="row-name">WebDAV 网盘</div><span class="row-badge">webdav</span></div>
+        <div class="row-url">播放网盘内 .mp4 / .strm</div>
       </div>
-      <div class="row-arrow"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      ${ARROW}
     </div>`;
   app.innerHTML = `
     <div class="home-hero">
